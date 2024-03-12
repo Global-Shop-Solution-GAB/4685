@@ -1,0 +1,676 @@
+Program.Sub.ScreenSU.Start
+Gui.frmTemplate..Create
+Gui.frmTemplate..Caption("Order Line Template")
+Gui.frmTemplate..Size(16695,6360)
+Gui.frmTemplate..MinX(0)
+Gui.frmTemplate..MinY(0)
+Gui.frmTemplate..Position(0,0)
+Gui.frmTemplate..BackColor(-2147483633)
+Gui.frmTemplate..MaxButton(False)
+Gui.frmTemplate..MinButton(False)
+Gui.frmTemplate..MousePointer(0)
+Gui.frmTemplate..Event(UnLoad,frmTemplate_UnLoad)
+Gui.frmTemplate.GsGridTemplate.Create(GsGridControl)
+Gui.frmTemplate.GsGridTemplate.Size(16200,5160)
+Gui.frmTemplate.GsGridTemplate.Position(120,525)
+Gui.frmTemplate.GsGridTemplate.Event(CellValueChanged,GsGridTemplate_CellValueChanged1)
+Gui.frmTemplate.GsGridTemplate.Event(RowCellClick,GsGridTemplate_RowCellClick)
+Gui.frmTemplate.cmdSave.Create(Button)
+Gui.frmTemplate.cmdSave.Size(1020,375)
+Gui.frmTemplate.cmdSave.Position(15255,90)
+Gui.frmTemplate.cmdSave.Caption("&Save")
+Gui.frmTemplate.cmdSave.Event(Click,cmdSave_Click)
+Gui.frmTemplate.lbl1.Create(Label,"Order Total :",True,1185,255,0,12540,210,True,0,"Arial",8,-2147483633,0)
+Gui.frmTemplate.txtTotal.Create(TextBox,"",True,1470,300,0,13620,135,True,0,"Arial",8,-2147483643,1)
+Gui.frmTemplate.txtTotal.Locked(True)
+Gui.frmTemplate.cmdLine.Create(Button)
+Gui.frmTemplate.cmdLine.Size(1620,375)
+Gui.frmTemplate.cmdLine.Position(10650,105)
+Gui.frmTemplate.cmdLine.Caption("Add more Lines")
+Gui.frmTemplate.cmdLine.Event(Click,cmdLine_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+	F.Intrinsic.Control.Try
+	V.Local.sError.Declare
+	variable.local.lRet.Declare
+	variable.Global.bRet.Declare
+	
+	
+	Variable.Local.sTemp.Declare 
+	
+
+	F.ODBC.Connection!con.OpenCompanyConnection(500)
+	
+	f.Intrinsic.Control.If(v.Caller.Switches,=,"N")
+	'	'populate Hook OE
+		f.Intrinsic.Control.If(v.Caller.Hook,=,"11550")
+			Function.Intrinsic.UI.MsgBox("Do you want to add order lines before creating header records ?","Confirm",4, variable.local.lRet)
+			f.Intrinsic.Control.If(variable.local.lRet,=,6)
+				f.Intrinsic.Control.CallSub(loaddt)
+				Gui.frmTemplate..Show
+			f.Intrinsic.Control.endif
+		'PostSaveHdr Hook
+		f.Intrinsic.Control.ElseIf(v.Caller.Hook,=,"11872")
+		f.Intrinsic.Control.andIf(Variable.Passed.GLOBAL,=,"RANLINE")
+			f.Intrinsic.Control.CallSub(upload_lines)
+		f.Intrinsic.Control.endif
+	f.Intrinsic.Control.endif
+
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: GCG_4685_OrdLineUpload.g2u{0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}.",V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+
+Program.Sub.Main.End
+
+Program.Sub.LoadDT.Start
+F.Intrinsic.Control.Try
+
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+V.Local.iSID.Declare
+V.Local.iFor.Declare
+
+'F.Intrinsic.Debug.InvokeDebugger
+'
+'
+
+	f.Intrinsic.String.Build("Delete from GCG_4685_OrdLine where Trmnl = '{0}'",v.Caller.Terminal,v.Local.sSql)
+	f.ODBC.Connection!con.Execute(v.Local.sSql)
+
+	F.Data.DataTable.Create("dtORD",True)
+	F.Data.DataTable.AddColumn("dtORD","Trmnl",String)
+	F.Data.DataTable.AddColumn("dtORD","LNo",String)
+	F.Data.DataTable.AddColumn("dtORD","Part",String)
+	F.Data.DataTable.AddColumn("dtORD","Part_B",String)
+	
+	F.Data.DataTable.AddColumn("dtORD","Description",String)
+	F.Data.DataTable.AddColumn("dtORD","UM",String)
+	F.Data.DataTable.AddColumn("dtORD","PL",String)
+	
+	F.Data.DataTable.AddColumn("dtORD","List",float)
+	F.Data.DataTable.AddColumn("dtORD","Discount",float)
+	F.Data.DataTable.AddColumn("dtORD","Qty",float)
+
+	
+	Function.Data.DataTable.AddExpressionColumn("dtORD", "Cost","float", "(list - (Discount/100)*List)")
+	Function.Data.DataTable.AddExpressionColumn("dtORD", "ExtCost","float", "Cost*Qty")
+	Function.Data.DataTable.AddExpressionColumn("dtORD", "ExtCost_HIDDEN","float", "Sum(ExtCost)")
+	
+'	F.Data.DataTable.AddColumn("dtORD","Delete",String)
+
+	Gui.frmTemplate.GsGridTemplate.AddGridviewFromDatatable("gvORD","dtORD")
+	Gui.frmTemplate.GsGridTemplate.MainView("gvORD")
+	Gui.frmTemplate.GsGridTemplate.SuspendLayout()
+	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","MultiSelect",True)
+	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","AllowSort",True)
+	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","AllowFilter",True)
+'	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","Editable",False)
+'	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","ShowDetailTabs",False)
+	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","ShowGroupPanel",False)
+	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","EnableAppearanceOddRow",True)
+	
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","User_B","ShowCaption",False)
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","SP_B","ShowCaption",False)
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Loc_B","ShowCaption",False)
+	
+
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","Icon","BROWSE")
+	
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Trmnl","Visible",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost_HIDDEN","Visible",False)
+	
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","VisibleIndex","0")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","VisibleIndex","1")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","VisibleIndex","2")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","VisibleIndex","3")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","VisibleIndex","4")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","VisibleIndex","5")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","VisibleIndex","6")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","VisibleIndex","7")
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","Caption","Discount(%)")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","Caption"," ")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","Caption","Quantity")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","Caption","Extended")
+	
+'	Gui.frmTemplate.GsGridTemplate.ColumnEdit("gvORD","Delete", "EditorButton", "Delete")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Delete","Caption"," ")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD", "Delete", "MaxWidth",100)
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","MinWidth","20")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","MinWidth","120")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","MinWidth","20")
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Description","MinWidth","200")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","UM","MinWidth","10")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","PL","MinWidth","10")
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","MinWidth","30")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","MinWidth","30")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","MinWidth","30")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","MinWidth","30")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","MinWidth","30")
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","MaxWidth",40)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","MaxWidth",20)
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Description","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","UM","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","PL","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","HeaderFontBold",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","HeaderFontBold",True)
+	
+'	Gui.F_POStatus.GsGCApproved.SetColumnProperty("gvApp","List","DisplayCustomNumeric","##,###,##0.00")
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","DisplayCustomNumeric","##,###,##0.00")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","DisplayCustomNumeric","##,###,##0.00")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","DisplayCustomNumeric","##,###,##0.00")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost_HIDDEN","DisplayCustomNumeric","##,###,##0.00")
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Description","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","UM","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","PL","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","HeaderHAlignment","Center")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","HeaderHAlignment","Center")
+	
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","CellHAlignment","Center")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","CellHAlignment","Center")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","CellHAlignment","Center")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","CellHAlignment","Center")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","CellHAlignment","Center")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","CellHAlignment","Center")
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","CellHAlignment","Center")
+	
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","LNo","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","ReadOnly",True)
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Description","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Description","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","UM","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","UM","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","PL","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","PL","ReadOnly",True)
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","List","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Cost","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","AllowEdit",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","ExtCost","ReadOnly",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","AllowEdit",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","ReadOnly",False)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","AllowEdit",True)
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","ReadOnly",False)
+	
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Delete","AllowEdit",False)
+'	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Delete","ReadOnly",True)
+	
+	
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","CellBackColor","LightYellow")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","CellBackColor","LightYellow")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","CellBackColor","LightYellow")
+	
+	gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part","CellForeColor","Blue")
+	gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Discount","CellForeColor","Blue")
+	gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Qty","CellForeColor","Blue")
+	
+	
+'	Gui.frmTemplate.GsGridTemplate.SetGridviewProperty("gvORD","EnterKeyNavigation","Vertical")
+	
+	
+
+
+
+''	F.Data.DataTable.Compute("dtORD","Max(SID)","",V.Local.iSID)
+'	V.Local.iSID.Set(v.DataTable.dtORD.rowcount)
+'	f.Intrinsic.Math.Add(v.DataTable.dtORD.rowcount,1,V.Local.iSID)
+'	F.Data.DataTable.AddRow("dtORD","Trmnl",v.Caller.Terminal,"LNo",V.Local.iSID,"Part","","Part_B","","Description","","UM","","PL","","List","0","Discount","0","Qty","0","Cost","0","ExtCost","0")
+	
+	f.Intrinsic.Control.for(V.Local.iFor,1,5,1)
+		f.Intrinsic.Math.Add(v.DataTable.dtORD.rowcount,1,V.Local.iSID)
+		F.Data.DataTable.AddRow("dtORD","Trmnl",v.Caller.Terminal,"LNo",V.Local.iSID,"Part","","Part_B","","Description","","UM","","PL","","List","0","Discount","0","Qty","0","Cost","0","ExtCost","0")
+	f.Intrinsic.Control.Next(v.Local.iFor)
+	
+
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","Icon","BROWSE")
+	
+	Gui.frmTemplate.GsGridTemplate.ResumeLayout()
+
+F.Intrinsic.Control.ExitSub
+
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.String.Build("Project: GCG_4685_OrdLineUpload.g2u{0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}.",V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+		F.Intrinsic.Control.End 
+	F.Intrinsic.Control.EndTry
+
+Program.Sub.LoadDT.End
+
+Program.Sub.frmTemplate_UnLoad.Start
+	F.Intrinsic.Control.Try
+	
+	V.Local.sError.Declare
+	variable.local.lRet.Declare
+	
+
+	f.Intrinsic.Control.If(variable.Global.bRet,=,False)
+		Function.Intrinsic.UI.MsgBox("Changes not saved,Do you want to save ?","Confirm",4, variable.local.lRet)
+		f.Intrinsic.Control.If(variable.local.lRet,=,6)
+			f.Intrinsic.Control.CallSub(cmdsave_click)
+		f.Intrinsic.Control.endif
+	f.Intrinsic.Control.endif
+
+
+	F.ODBC.Connection!con.Close
+	F.Intrinsic.Control.End 
+	
+	F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: GAB_4571_Security_Setup.g2u{0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}.",V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+
+Program.Sub.frmTemplate_UnLoad.End
+
+Program.Sub.cmdLine_Click.Start
+	F.Intrinsic.Control.Try
+	
+	V.Local.sError.Declare
+	
+	V.Local.iSID.Declare
+	
+	V.Local.iSID.Set(v.DataTable.dtORD.rowcount)
+	f.Intrinsic.Math.Add(v.DataTable.dtORD.rowcount,1,V.Local.iSID)
+	F.Data.DataTable.AddRow("dtORD","Trmnl",v.Caller.Terminal,"LNo",V.Local.iSID,"Part","","Part_B","","Description","","UM","","PL","","List","0","Discount","0","Qty","0","Cost","0","ExtCost","0")
+	Gui.frmTemplate.GsGridTemplate.SetColumnProperty("gvORD","Part_B","Icon","BROWSE")
+	
+		F.Intrinsic.Control.Catch
+	F.Intrinsic.String.Build("Project: GAB_4571_Security_Setup.g2u{0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}.",V.Ambient.Newline,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End 
+F.Intrinsic.Control.EndTry
+	
+Program.Sub.cmdLine_Click.End
+
+Program.Sub.cmdSave_Click.Start
+F.Intrinsic.Control.SetErrorHandler("GsGridTemplate_CellValueChanged1_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+
+'Function.Data.DataTable.AcceptChanges("DTORD")
+
+
+F.Data.DataTable.SaveToDB("DTORD","con","GCG_4685_OrdLine","Lno*!*Trmnl*!*Part",256,"LNo@!@LNo*!*Part@!@Part*!*Qty@!@Qty*!*Cost@!@Cost*!*Trmnl@!@Trmnl*!*Description@!@Description*!*UM@!@UM*!*PL@!@PL") 
+
+variable.Global.bRet.Set(True)
+Variable.Passed.GLOBAL.Set("RANLINE")
+f.Intrinsic.UI.Msgbox("Order Line Template saved successfully")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("GsGridTemplate_CellValueChanged1_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4685_OrdLineUpload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.cmdSave_Click.End
+
+Program.Sub.GsGridTemplate_RowCellClick.Start
+F.Intrinsic.Control.SetErrorHandler("LoadDT_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local.sRet.Declare
+V.Local.sRetval.Declare(String)
+v.Local.irow.Declare(long)
+v.Local.iFor.Declare(long)
+V.Local.lLno.Declare(long)
+V.Local.sSQL.Declare(String)
+
+F.Intrinsic.Control.SelectCase(V.Args.Column)
+	F.Intrinsic.Control.Case("Part_B")
+		F.Intrinsic.UI.SetBrowserHotTypeAhead(True)
+	'105
+		F.Intrinsic.UI.Browser(105,"",V.Local.sRet)
+		F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+			F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+			
+			F.Data.DataTable.SetValue("dtOrd",V.Args.RowIndex,"Part",V.Local.sRet(0).Trim)
+			
+			f.Intrinsic.String.Build("{0}{1}",V.Local.sRet(0),V.Local.sRet(1),V.Local.sRet)
+			f.Intrinsic.Control.CallSub(getprice,"Part",V.Local.sRet)
+			
+			f.Intrinsic.String.Split(V.Args.Price,"*!*",V.Local.sRetval)
+
+			F.Data.DataTable.SetValue("dtOrd",V.Args.RowIndex,"Description",V.Local.sRetval(1))
+			F.Data.DataTable.SetValue("dtOrd",V.Args.RowIndex,"PL",V.Local.sRetval(2))
+			F.Data.DataTable.SetValue("dtOrd",V.Args.RowIndex,"UM",V.Local.sRetval(3))
+			F.Data.DataTable.SetValue("dtOrd",V.Args.RowIndex,"List",V.Local.sRetval(4))
+		
+			gui.frmTemplate.GsGridTemplate.GetCellValue("gvORD",12,V.Args.RowIndex,V.Local.sRet)
+			Function.Intrinsic.String.Format(V.Local.sRet,"####.00", V.Local.sRet)
+			gui.frmTemplate.txtTotal.text(V.Local.sRet)
+		F.Intrinsic.Control.EndIf
+'	F.Intrinsic.Control.Case("Delete")
+'		
+'		f.Intrinsic.Math.Add(v.Args.RowIndex,1,v.Local.irow)
+'		f.data.DataTable.DeleteRow("dtOrd",v.Args.rowindex)
+''		Function.Data.DataTable.AcceptChanges("DTORD")
+''		F.Data.DataTable.SaveToDB("DTORD","con","GCG_4685_OrdLine","Lno*!*Trmnl",4,"LNo@!@LNo*!*Part@!@Part*!*Qty@!@Qty*!*Cost@!@Cost*!*Trmnl@!@Trmnl") 
+'		
+'		F.Intrinsic.UI.Msgbox(v.Local.irow)
+'		f.Intrinsic.String.Build("delete from GCG_4685_OrdLine where Lno = '{0}' and Trmnl = '{1}'",v.Local.irow,v.Caller.Terminal,V.Local.sSQL)
+'		f.ODBC.Connection!con.Execute(V.Local.sSQL)
+''		
+''
+''	
+'		F.Intrinsic.Control.For(v.Local.iFor,0,v.dataTable.dtOrd.RowCount--,1)
+'			f.Intrinsic.Math.add(v.Local.iFor,1,V.Local.lLno)
+'			F.Data.DataTable.SetValue("dtOrd",V.Local.iFor,"LNo",V.Local.lLno)
+'		f.Intrinsic.Control.Next(v.Local.iFor)
+'		
+'		F.Data.DataTable.SaveToDB("DTORD","con","GCG_4685_OrdLine","Lno*!*Trmnl*!*Part",256,"LNo@!@LNo*!*Part@!@Part*!*Qty@!@Qty*!*Cost@!@Cost*!*Trmnl@!@Trmnl") 
+		
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("LoadDT_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4685_OrdLineUpload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.GsGridTemplate_RowCellClick.End
+
+Program.Sub.GsGridTemplate_CellValueChanged.Start
+F.Intrinsic.Control.SetErrorHandler("LoadDT_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iRet.Declare(String)
+
+'V.Local.sPart.set(V.datatable.Import1(v.Local.iFor).GSS_PART_NUMBER.fieldval)
+'
+'
+'gui.frmTemplate.txtTotal.Set(V.datatable.dtORD(0).ExtCost.fieldval)
+
+'F.Intrinsic.Debug.InvokeDebugger
+'
+'
+'
+'f.Intrinsic.Control.Try 
+'
+'gui.frmTemplate.GsGridTemplate.GetCellValue("gvORD",7,V.Args.RowIndex,V.Local.iRet)
+''f.Intrinsic.UI.Msgbox(V.Local.iRet)
+'gui.frmTemplate.txtTotal.text(V.Local.iRet)
+'
+'f.Intrinsic.Control.Catch 
+'f.Intrinsic.Control.EndTry 
+
+'f.Intrinsic.UI.Msgbox(V.datatable.dtORD(0).LNo.fieldval)
+
+'gui.frmTemplate.GsGridTemplate.GetCellValue("gvORD",7,V.Args.RowIndex,V.Local.iRet)
+''f.Intrinsic.UI.Msgbox(V.Local.iRet)
+'gui.frmTemplate.txtTotal.text(V.Local.iRet)
+
+'Gui.frmTemplate.GsGridTemplate.SelectRow("gvORD", 2)
+
+'gui.frmTemplate.txtTotal.SetFocus 
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("LoadDT_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4685_OrdLineUpload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.GsGridTemplate_CellValueChanged.End
+
+Program.Sub.GsGridTemplate_CellValueChanged1.Start
+F.Intrinsic.Control.SetErrorHandler("GsGridTemplate_CellValueChanged_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iRet.Declare(Float)
+V.Local.iRet1.Declare(Float)
+V.Local.sRet.Declare(String)
+
+
+
+f.Intrinsic.Control.If(V.Args.column,=,"Discount","or",V.Args.column,=,"Qty")
+
+
+'F.Intrinsic.Debug.InvokeDebugger
+
+'F.Intrinsic.Debug.Stop
+
+
+	variable.Global.bRet.Set(False)
+
+	V.Local.iRet.Set(V.datatable.Dtord(V.Args.RowIndex).Discount.fieldval)
+	V.Local.iRet1.Set(V.datatable.Dtord(V.Args.RowIndex).Qty.fieldval)
+	
+'	f.Intrinsic.Control.If(V.Local.iRet,<,1,"or",V.Local.iRet1,<,1)
+	f.Intrinsic.Control.If(V.Local.iRet1,<,1)
+		F.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.endif
+'
+''added to refresh the calculation
+''	Gui.frmTemplate.GsGridTemplate.SuspendLayout()
+	Gui.frmTemplate.GsGridTemplate.MainView("gvORD")
+'	
+'	Gui.frmTemplate.GsGridTemplate.ResumeLayout()
+	'-------------------------------------
+	
+	gui.frmTemplate.GsGridTemplate.GetCellValue("gvORD",12,V.Args.RowIndex,V.Local.sRet)
+	Function.Intrinsic.String.Format(V.Local.sRet,"####.00", V.Local.sRet)
+	gui.frmTemplate.txtTotal.text(V.Local.sRet)
+f.Intrinsic.Control.endif
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("GsGridTemplate_CellValueChanged_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4685_OrdLineUpload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.GsGridTemplate_CellValueChanged1.End
+
+Program.Sub.GetPrice.Start
+F.Intrinsic.Control.SetErrorHandler("GetPrice_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local.sSQL.Declare(String)
+Variable.Local.sRet.Declare(string)
+
+
+f.Intrinsic.String.Build("select part,description,Product_line,UM_Inventory,AMT_PRICE from INVENTORY_MSTR where part+LOcation = '{0}'",v.Args.Part,v.Local.sSQL)
+
+Function.ODBC.Connection!con.ExecuteAndReturn(v.Local.sSQL,16,Variable.Local.sRet)
+
+Function.Intrinsic.Variable.AddRV("Price",Variable.Local.sRet)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("GetPrice_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4685_OrdLineUpload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.GetPrice.End
+
+Program.Sub.Upload_lines.Start
+F.Intrinsic.Control.SetErrorHandler("Upload_lines_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local.sParam.Declare(String)
+V.Local.sPath.Declare(String)
+V.Local.sTemp.Declare(String)
+V.Local.bExists.Declare(Boolean)
+V.Local.sTempFull.Declare(String)
+V.Local.sLenArray.Declare(String)
+V.Local.sLineArray.Declare(String)
+V.Local.sFormatArray.Declare(String)
+V.Local.i.Declare(Float)
+V.Local.iRet.Declare(Float)
+V.Local.sSql.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.iLengthArray.Declare(long)
+V.Local.iFormatArray.Declare(long)
+V.local.sFileName.Declare(String)
+V.local.sCustomer.Declare(String)
+V.local.sOrderno.Declare(String)
+V.Local.sText.Declare(String)
+
+'set length array
+
+F.Intrinsic.ui.InvokeWaitDialog("Upoading Lines...","Please Wait...") 
+f.Intrinsic.String.Build("select * from GCG_4685_OrdLine where part <> '' and qty >0 and Trmnl = '{0}' ORDER BY LNO",v.Caller.Terminal,V.Local.sSql)
+f.Data.DataTable.CreateFromSQL("DTupload","con",v.Local.sSql)
+
+f.Intrinsic.Control.If(v.DataTable.DTupload.rowcount,>,0)
+
+	F.Intrinsic.String.LPad(V.Passed.000006,"0",7,V.local.sCustomer)
+	F.Intrinsic.String.LPad(Variable.Passed.000003,0,7,V.Local.sOrderno)
+
+	F.Intrinsic.String.Split("1*!*7*!*7*!*38*!*2*!*5*!*30*!*3*!*1*!*13*!*10*!*16*!*30*!*30*!*30*!*30*!*30*!*2","*!*",V.Local.iLengthArray)
+	
+	F.Intrinsic.String.Split(V.Local.sLenArray,"*!*",V.Local.sLenArray)
+	'set Alignment array
+	V.Local.sFormatArray.Set("0*!*0*!*0*!*0*!*0*!*0*!*0*!*11*!*0*!*11*!*11*!*11*!*0*!*0*!*0*!*0*!*0*!*0")
+	
+	F.Intrinsic.String.split(V.Local.sFormatArray,"*!*",V.Local.iFormatArray)
+	
+	F.Intrinsic.String.Concat("LINESUPLOAD",V.Caller.Terminal,V.Caller.CompanyCode,V.local.sFileName)
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\",V.local.sFileName,V.Local.sPath)
+	F.Intrinsic.File.Exists(V.Local.sPath,V.Local.bExists)
+	F.Intrinsic.Control.If(V.Local.bExists,=,True)
+		F.Intrinsic.File.DeleteFile(V.Local.sPath)
+	F.Intrinsic.Control.EndIf
+	'Build TempFull String variable and create text file
+	F.Intrinsic.Control.For(V.Local.i,0,v.DataTable.DTupload.rowcount--,1)
+	
+		'COST
+		F.Intrinsic.Math.ConvertToFloat(V.datatable.DTupload(V.Local.i).Cost.fieldval,V.Local.iRet)
+		F.Intrinsic.Math.Round(V.Local.iRet,2,V.Local.iRet)
+		F.Intrinsic.String.ConvertToString(V.Local.iRet,V.Local.sRet)
+		
+		F.Intrinsic.String.IsInString(V.Local.iRet,".",True,V.Local.bExists)
+		F.Intrinsic.Control.If(V.Local.bExists,<>,True)
+			F.Intrinsic.String.Concat(V.Local.iRet,".00",V.Local.sRet)
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.Split(V.Local.sRet,".",V.Local.sText)
+		F.Intrinsic.String.Len(V.Local.sText(1),V.Local.iRet)
+		F.Intrinsic.Control.if(V.Local.iRet,=,1)
+			F.Intrinsic.String.RPad(V.Local.sText(1),"0",2,V.Local.sRet)
+			F.Intrinsic.String.Concat(V.Local.sText(0),V.Local.sRet,V.Local.sRet)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Concat(V.Local.sText(0),V.Local.sText(1),V.Local.sRet)
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.String.LPad(V.Local.sRet,"0",12,V.Local.sRet)
+		F.Intrinsic.String.RPad(V.Local.sRet,"0",16,V.Local.sRet)
+		F.Data.DataTable.SetValue("DTupload",V.Local.i,"Cost",V.Local.sRet)
+	
+		'UM
+		F.Intrinsic.String.UCase(V.datatable.DTupload(V.Local.i).UM.fieldval,V.Local.sRet)
+		F.Data.DataTable.SetValue("DTupload",V.Local.i,"UM",V.Local.sRet)
+		
+		'Lno
+		F.Intrinsic.String.ConvertToString(V.datatable.DTupload(V.Local.i).Lno.fieldval,V.Local.sRet)
+		F.Intrinsic.String.LPad(V.Local.sRet,"0",3,V.Local.sRet)
+		F.Data.DataTable.SetValue("DTupload",V.Local.i,"Lno",V.Local.sRet)
+
+		'Qty
+		F.Intrinsic.String.LPad(V.datatable.DTupload(V.Local.i).Qty.fieldval,"0",9,V.Local.sRet)
+		F.Intrinsic.String.RPad(V.Local.sRet,"0",13,V.Local.sRet)
+		F.Data.DataTable.SetValue("DTupload",V.Local.i,"Qty",V.Local.sRet)
+	
+		
+		F.Intrinsic.ui.ChangeWaitStatus("Adding Sales Orders to Global Shop",V.Local.i,0,v.DataTable.DTupload.rowcount--)
+	
+		F.Intrinsic.String.Build("O*!*{0}*!*{1}*!*{2}*!*{3}*!*{4}*!*{5}*!*{6}*!*{7}*!*{8}*!*{9}*!*{10}*!*{11}*!*{12}*!*{13}*!*{14}*!*{15}*!*{16}",V.local.sCustomer.Trim,V.local.sOrderno.Trim,V.datatable.DTupload(V.Local.i).Part.fieldvaltrim," ",V.datatable.DTupload(V.Local.i).PL.fieldvaltrim,V.datatable.DTupload(V.Local.i).Description.fieldvaltrim,V.datatable.DTupload(V.Local.i).Lno.fieldvaltrim,"L",V.datatable.DTupload(V.Local.i).Qty.fieldvaltrim,"",V.datatable.DTupload(V.Local.i).Cost.fieldvaltrim,"","","","","",V.datatable.DTupload(V.Local.i).UM.fieldvaltrim,V.Local.sTemp)
+		F.Intrinsic.String.Split(V.Local.sTemp,"*!*",V.Local.sTemp)
+		F.Intrinsic.String.PositionalString(V.Local.sTemp,V.Local.iLengthArray,V.Local.iFormatArray,V.Local.sRet)
+		F.Intrinsic.String.Concat(V.Local.sTempFull,V.Local.sRet,V.Ambient.NewLine,V.Local.sTempFull)
+	F.Intrinsic.Control.Next(V.Local.i)
+	
+	F.Intrinsic.File.String2File(V.Local.sPath,V.Local.sTempFull)
+	
+	'Call upload
+	'activate when delivered
+	
+	V.Local.sParam.Set(Variable.Caller.User)
+'	F.Intrinsic.String.Rpad(Variable.Caller.User," ",8,Variable.Local.sTemp)
+'added RPAD 1 because it dont like spaces
+	F.Intrinsic.String.Rpad(V.Local.sParam.trim,"1",8,Variable.Local.sTemp)
+'	F.Intrinsic.String.Concat(V.Local.sParam,V.Ambient.DblQuote,Variable.Caller.CompanyCode,Variable.Local.sTemp,Variable.Local.sPath,V.Ambient.DblQuote,Variable.Local.sParam)
+	F.Intrinsic.String.Concat(Variable.Caller.CompanyCode,Variable.Local.sTemp,Variable.Local.sPath,Variable.Local.sParam)
+	F.Intrinsic.UI.ChangeWaitStatus("Adding Sales Order Lines...")
+	F.Intrinsic.Task.Launchgsssync("ORDADCMD","-c",Variable.Local.sParam)
+	
+	Variable.Passed.GLOBAL.Set("")
+	f.Intrinsic.String.Build("Delete from GCG_4685_OrdLine where Trmnl = '{0}'",v.Caller.Terminal,v.Local.sSql)
+	f.ODBC.Connection!con.Execute(v.Local.sSql)
+
+f.Intrinsic.Control.endif
+F.Data.DataTable.Close("DTupload")
+F.Intrinsic.ui.CloseWaitDialog 
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Upload_lines_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4685_OrdLineUpload.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Upload_lines.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_4685_OrdLineUpload.g2$}$RAN$}$8/4/2017 11:08:32 AM$}$True
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$Order Line upload from Maintenance Screen
+Program.Sub.Comments.End
